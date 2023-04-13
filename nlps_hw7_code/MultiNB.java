@@ -9,7 +9,7 @@ public class MultiNB {
         String fileDirectory = "C:\\Users\\Joshua G-K\\Documents\\College\\Junior Year\\NLPs\\hw7\\data\\";
         String trainingData = fileDirectory + "movies.data";
         String testSentences = fileDirectory + "simple.data";
-        Double lambda = 0.1;
+        Double lambda = 0.0;
 
         MultiNB classifier = new MultiNB(trainingData, testSentences, lambda);
     }
@@ -21,7 +21,7 @@ public class MultiNB {
 
     // Hashmap for the total number of times we have seen a label for any # words
     // (so # times label y appeared times length of sentence)?
-    private HashMap<String, Integer> countLabel;
+    private HashMap<String, Double> countLabel;
     // Hashmap for total number of times the positive label (label 5) has been seen
     // with a specific word
     private HashMap<String, HashMap<String, Double>> countW_Label;
@@ -31,31 +31,138 @@ public class MultiNB {
     private HashMap<String, HashMap<String, Double>> probabilityW_Label;
     // Set for vocabulary
     private HashSet<String> vocabulary;
+    // Vocabulary size
+    private int vocabSize;
 
     private String testSentences;
 
     private Double lambda;
+
+    private Double probPositiveLabel;
+
+    private Double probNegativeLabel;
 
     public MultiNB(String trainingData, String testSentences, Double lambda) {
         this.testSentences = testSentences;
         this.lambda = lambda;
         // Initialize hashmaps
         this.countLabel = new HashMap<>();
-        this.countLabel.put(POSITIVE_LABEL, 0);
-        this.countLabel.put(NEGATIVE_LABEL, 0);
+        this.countLabel.put(POSITIVE_LABEL, 0.0);
+        this.countLabel.put(NEGATIVE_LABEL, 0.0);
         // Intialize countW_Label map
         this.countW_Label = new HashMap<>();
         this.countW_Label.put(POSITIVE_LABEL, new HashMap<>());
         this.countW_Label.put(NEGATIVE_LABEL, new HashMap<>());
         // Initialize probabilityW_Label
         this.probabilityW_Label = new HashMap<>();
-        this.countW_Label.put(POSITIVE_LABEL, new HashMap<>());
-        this.countW_Label.put(NEGATIVE_LABEL, new HashMap<>());
+        this.probabilityW_Label.put(POSITIVE_LABEL, new HashMap<>());
+        this.probabilityW_Label.put(NEGATIVE_LABEL, new HashMap<>());
         // Initialize vocabulary
         this.vocabulary = new HashSet<>();
 
+        // Populate the counts for the training data
+        this.createCounts(trainingData);
+
+        // Get probability for each label
+        this.vocabSize = this.vocabulary.size();
+        Double denominator = this.countLabel.get(POSITIVE_LABEL) + this.countLabel.get(NEGATIVE_LABEL);
+        this.probPositiveLabel = Math.log10(this.countLabel.get(POSITIVE_LABEL) / denominator);
+        this.probNegativeLabel = Math.log10(this.countLabel.get(NEGATIVE_LABEL) / denominator);
+        // Create the log probabilities for each word's appearance for the positive
+        // label
+        this.createLogProbabilities(POSITIVE_LABEL);
+
+        // Create the log probabilities for each word's appearance for the negative
+        // label
+        this.createLogProbabilities(NEGATIVE_LABEL);
+
+        // Determine labels for each sentence
+        this.determineLabels(testSentences);
+    }
+
+    public void determineLabels(String testSentences) {
         // Read through file
-        File file = new File(trainingData);
+        File file = new File(testSentences);
+        // For pre-processing and creating stopList set
+        try {
+            // Where we store whether reviews as positive or negative
+            ArrayList<ReviewType> reviewTypeList = new ArrayList<>();
+            String whiteSpaceDelimiter = "\\s+";
+            // Get everything in stop list and put it in a set
+            Scanner reader = new Scanner(file, "UTF-8").useDelimiter(whiteSpaceDelimiter);
+
+            // Adds all stop list items ot a stop list hashset
+            while (reader.hasNextLine()) {
+                // Get then ext line
+                String line = reader.nextLine();
+
+                // Makes sure there is no white space in the stop list and makes an array
+                String[] words = line.split(whiteSpaceDelimiter);
+
+                // Loop through words and add to the count of that word in respective hashmaps
+                String word;
+                Double positiveProbability = this.probPositiveLabel;
+                Double negativeProbability = this.probNegativeLabel;
+                for (int i = 0; i < words.length; i++) {
+                    word = words[i];
+                    if (this.vocabulary.contains(word)) {
+                        positiveProbability += this.probabilityW_Label.get(POSITIVE_LABEL).get(word);
+                        negativeProbability += this.probabilityW_Label.get(NEGATIVE_LABEL).get(word);
+                    }
+                }
+
+                // Determine whether word is positive or negative and add that to output
+                ReviewType lineReviewType;
+                if (positiveProbability > negativeProbability) {
+                    lineReviewType = new ReviewType(POSITIVE_LABEL, line, positiveProbability);
+                } else {
+                    lineReviewType = new ReviewType(NEGATIVE_LABEL, line, negativeProbability);
+                }
+                reviewTypeList.add(lineReviewType);
+            }
+            // System.out.println(reviewTypeList);
+            // // print out output
+            for (ReviewType reviewType : reviewTypeList) {
+                System.out.println(reviewType);
+            }
+
+            // Once we are done we make a
+            reader.close();
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public void createLogProbabilities(String labelType) {
+        Double labelCount;
+        HashMap<String, Double> countWord;
+        HashMap<String, Double> probabilityWord;
+        if (labelType.equals(POSITIVE_LABEL) || labelType.equals(NEGATIVE_LABEL)) {
+            // get the label count integer
+            labelCount = this.countLabel.get(labelType);
+            // Get the label count hashmap
+            countWord = this.countW_Label.get(labelType);
+            // Get probability
+            probabilityWord = this.probabilityW_Label.get(labelType);
+        } else {
+            System.out.println("ERROR, labelType does not match either positive or negative");
+            return;
+        }
+        // For each word in the label count hashmap get the probability and make it log
+        // base ten
+        for (String word : countWord.keySet()) {
+            // do math and add to probability word
+            Double prob = (countWord.get(word) + lambda) / (labelCount + lambda * this.vocabSize);
+            prob = Math.log10(prob);
+            probabilityWord.put(word, prob);
+        }
+
+        // System.out.println(probabilityWord);
+    }
+
+    public void createCounts(String trainingDataPath) {
+        // Read through file
+        File file = new File(trainingDataPath);
 
         // For pre-processing and creating stopList set
         try {
@@ -72,7 +179,7 @@ public class MultiNB {
 
                 // Declare the hashmap we will use to add counts to
                 HashMap<String, Double> countWord;
-                int countSpecificLabel;
+                Double countSpecificLabel;
                 // If the label at the front of the line is 1 or 5 then we make this the hashmap
                 // for 1 or 5 respectively
                 String label = words[0];
@@ -116,6 +223,7 @@ public class MultiNB {
         }
 
         // Check to ensure
-        System.out.println(this.countW_Label);
+        // System.out.println(this.countW_Label);
     }
+
 }
