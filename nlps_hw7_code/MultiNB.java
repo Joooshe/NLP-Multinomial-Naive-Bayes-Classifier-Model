@@ -78,6 +78,9 @@ public class MultiNB {
 
         // Determine labels for each sentence
         this.determineLabels(testSentences);
+
+        // TODO:
+        // Do writeup
     }
 
     public void determineLabels(String testSentences) {
