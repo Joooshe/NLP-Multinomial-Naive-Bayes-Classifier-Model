@@ -6,7 +6,13 @@ public class ReviewType {
     private String review;
 
     private Double logProbability;
-
+    
+    /**
+     * Class to specify whether a certain review is positive or negative and if so with what logProbability for that label 
+     * @param label the label our MultiNB model assigned the review 
+     * @param review the review (can be thought of as a collections of tokens split by white space used to create the classification)
+     * @param logProbability the log probability that the review is that given label
+     */
     public ReviewType(String label, String review, Double logProbability) {
         this.label = label;
         this.review = review;
